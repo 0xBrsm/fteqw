@@ -232,6 +232,7 @@ qboolean        scr_drawloading;
 float           scr_disabled_time;
 
 cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
+cvar_t	scr_touch_autocfg = CVARFD("scr_touch_autocfg", "1", CVAR_NOTFROMSERVER, "Auto-exec touch.cfg (the built-in on-screen touch controls) on the first touchscreen contact when no touch-command showpics are defined. Shells that supply their own touch UI (e.g. the NexQuake web shell) set this to 0.");
 cvar_t	show_fps	= CVARAFD("show_fps"/*qw*/, "0", "scr_showfps"/*qs*/, CVAR_ARCHIVE, "Displays the current framerate on-screen.\n0: Off.\n1: framerate average over a second.\n2: Show a frametimes graph (with additional timing info).\n-1: Normalized graph that focuses on the variation ignoring base times.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
@@ -276,6 +277,7 @@ void CLSCR_Init(void)
 	Cmd_AddCommand("cprint", SCR_CPrint_f);
 
 	Cvar_Register(&con_stayhidden, cl_screengroup);
+	Cvar_Register(&scr_touch_autocfg, cl_screengroup);
 	Cvar_Register(&scr_loadingrefresh, cl_screengroup);
 	Cvar_Register(&scr_showloading, cl_screengroup);
 	Cvar_Register(&scr_loadingscreen_picture, cl_screengroup);
@@ -1512,7 +1514,7 @@ const char *SCR_ShowPics_ClickCommand(float cx, float cy, qboolean istouch)
 		}
 	}
 
-	if (tryload)
+	if (tryload && scr_touch_autocfg.ival)
 		Cbuf_AddText("exec touch.cfg\n", RESTRICT_LOCAL);
 	return best;
 }
