@@ -1299,6 +1299,107 @@ mergeInto(LibraryManager.library,
 		return 0;
 	},
 
+	// --- Nexus trunk WebTransport datagram transport -----------------------
+	// Mirrors NexQuake's net_wt.c: a single Module.nqWt session carrying the same
+	// 2-byte-port-prefixed trunk frames as the WS path, but over unreliable QUIC
+	// datagrams. Config (url + optional serverCertificateHashes for self-signed
+	// pinning) comes from Module.nqTransportConfig.webtransport, exactly like the
+	// NexQuake client.
+	emscriptenfte_trunk_wt_supported : function()
+	{
+		var cfg = (Module.nqTransportConfig && Module.nqTransportConfig.webtransport) || null;
+		return (cfg && cfg.url && typeof WebTransport === 'function') ? 1 : 0;
+	},
+	emscriptenfte_trunk_wt_start : function()
+	{
+		var cfg = (Module.nqTransportConfig && Module.nqTransportConfig.webtransport) || null;
+		if (!cfg || !cfg.url || typeof WebTransport !== 'function') return -1;
+		if (Module.nqWt && Module.nqWt.session) return 0;
+		var s = Module.nqWt = {session:null, writer:null, recvQueue:[], recvHead:0, recvCap:512,
+			sendBuf:null, opened:false, everOpened:false, closed:false, errDetail:""};
+		var opts;
+		if (cfg.serverCertificateHashes && cfg.serverCertificateHashes.length) {
+			try {
+				opts = {serverCertificateHashes: cfg.serverCertificateHashes.map(function(h){
+					var bin = atob(h), arr = new Uint8Array(bin.length);
+					for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+					return {algorithm:'sha-256', value: arr.buffer};
+				})};
+			} catch(e) { opts = undefined; }
+		}
+		try {
+			s.session = opts ? new WebTransport(cfg.url, opts) : new WebTransport(cfg.url);
+		} catch(e) { s.errDetail = String((e && e.message) || e); s.closed = true; return -1; }
+		s.session.ready.then(function(){
+			s.writer = s.session.datagrams.writable.getWriter();
+			s.opened = true; s.everOpened = true;
+			(async function(){
+				var reader = s.session.datagrams.readable.getReader();
+				try { for(;;){ var r = await reader.read(); if (r.done) break;
+					if (s.recvQueue.length - s.recvHead >= s.recvCap) s.recvQueue[s.recvHead++] = null;
+					s.recvQueue.push(new Uint8Array(r.value)); } }
+				catch(e){ s.errDetail = String((e && e.message) || e); }
+				s.opened = false; s.closed = true;
+			})();
+		}).catch(function(e){ s.errDetail = String((e && e.message) || e); s.closed = true; });
+		s.session.closed.then(function(){ s.opened = false; s.closed = true; },
+			function(e){ s.opened = false; s.closed = true; if (!s.errDetail) s.errDetail = String((e && e.message) || e); });
+		return 0;
+	},
+	emscriptenfte_trunk_wt_ready  : function() { return (Module.nqWt && Module.nqWt.opened) ? 1 : 0; },
+	emscriptenfte_trunk_wt_closed : function() { return (!Module.nqWt || Module.nqWt.closed) ? 1 : 0; },
+	emscriptenfte_trunk_wt_send : function(ptr, len)
+	{
+		var s = Module.nqWt;
+		if (!s || !s.writer) return 0;   // not connected yet -> CLOGGED (caller retries)
+		if (s.closed) return -1;
+		try {
+			var dg = s.session && s.session.datagrams, max = dg && dg.maxDatagramSize;
+			if (typeof max === 'number' && max > 0 && len > max) return len; // oversized = UDP-style loss
+			if (!s.sendBuf || s.sendBuf.length < len) { var cap = 1024; while (cap < len) cap <<= 1; s.sendBuf = new Uint8Array(cap); }
+			s.sendBuf.set(HEAPU8.subarray(ptr, ptr + len));
+			s.writer.write(s.sendBuf.subarray(0, len)).catch(function(e){
+				if (e instanceof TypeError) return; // oversized; drop like loss
+				s.errDetail = String((e && e.message) || e);
+				if (s.session) { try { s.session.close(); } catch(_) {} }
+				s.opened = false; s.closed = true;
+			});
+			return len;
+		} catch(e) {
+			s.errDetail = String((e && e.message) || e);
+			if (s.session) { try { s.session.close(); } catch(_) {} }
+			s.opened = false; s.closed = true;
+			return -1;
+		}
+	},
+	emscriptenfte_trunk_wt_recv : function(ptr, max_len)
+	{
+		var s = Module.nqWt;
+		if (!s || s.recvHead >= s.recvQueue.length) return 0;
+		var msg = s.recvQueue[s.recvHead];
+		s.recvQueue[s.recvHead++] = null;
+		if (s.recvHead === s.recvQueue.length) { s.recvQueue.length = 0; s.recvHead = 0; }
+		if (msg.length > max_len) return -1; // oversized; caller keeps draining
+		HEAPU8.set(msg, ptr);
+		return msg.length;
+	},
+	emscriptenfte_trunk_wt_close : function()
+	{
+		var s = Module.nqWt;
+		if (!s) return;
+		if (s.session) { try { s.session.close(); } catch(e) {} }
+		s.opened = false; s.closed = true;
+		s.session = null; s.writer = null; s.recvQueue = []; s.recvHead = 0; s.sendBuf = null;
+	},
+
+	// Update the NexQuake shell's lower-right transport indicator on connect.
+	emscriptenfte_nqsettransport : function(namep)
+	{
+		var n = UTF8ToString(namep);
+		if (typeof Module !== 'undefined' && Module && typeof Module.nqSetTransport === 'function')
+			Module.nqSetTransport(n);
+	},
+
 	emscriptenfte_rtc_create__deps: ['emscriptenfte_handle_alloc'],
 	emscriptenfte_rtc_create : function(clientside, ctxp, ctxi, callback, pcconfig)
 	{

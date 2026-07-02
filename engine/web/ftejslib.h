@@ -26,6 +26,17 @@ int emscriptenfte_ws_cansend(int sockid, int extra, int maxpending);	//returns f
 int emscriptenfte_ws_send(int sockid, const void *data, int len);		//send data to the peer. queues data. never dropped.
 int emscriptenfte_ws_recv(int sockid, void *data, int len);				//receive data from the peer.
 
+//Nexus trunk WebTransport datagram transport (single Module.nqWt session; config from Module.nqTransportConfig.webtransport).
+int  emscriptenfte_trunk_wt_supported(void);				//1 if a WT url is advertised and WebTransport is available
+int  emscriptenfte_trunk_wt_start(void);					//open the session (non-blocking); 0 ok / -1 unavailable
+int  emscriptenfte_trunk_wt_ready(void);					//1 once the session handshake completed
+int  emscriptenfte_trunk_wt_closed(void);					//1 if the session is closed/failed
+int  emscriptenfte_trunk_wt_send(int ptr, int len);			//len sent / 0 not-ready (clogged) / -1 dead
+int  emscriptenfte_trunk_wt_recv(int ptr, int max_len);		//one datagram; >0 len / 0 empty / -1 oversized
+void emscriptenfte_trunk_wt_close(void);
+void emscriptenfte_nqsettransport(const char *name);		//update the NexQuake shell transport indicator
+
+
 int emscriptenfte_rtc_create(int clientside, void *ctxp, int ctxi, void(*cb)(void *ctxp, int ctxi, int type, const char *data), const char *json_config);					//open a webrtc connection to a specific broker url
 void emscriptenfte_rtc_offer(int sock, const char *offer, const char *sdptype);//sets the remote sdp.
 int emscriptenfte_rtc_candidate(int sock, const char *offer);				//adds a remote candidate.

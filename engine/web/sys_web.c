@@ -601,3 +601,47 @@ void Sys_Sleep (double seconds)
 	//SDL_Delay(seconds * 1000);
 }
 
+//==========================================================================
+// NexQuake shell bridge.
+// The NexQuake browser shell (client/shell/00-core.js) drives the engine
+// through a small NQWasm_* contract called via Module.ccall, so the shell UX
+// is identical to original NexQuake. Provide those entry points here, wired to
+// FTE internals. (Exported via EXPORTED_RUNTIME_METHODS=ccall + KEEPALIVE.)
+//==========================================================================
+EMSCRIPTEN_KEEPALIVE void NQWasm_ExecCommand(const char *cmd)
+{	//console command from the shell overlay (cd/cfg exec/menu toggle/rcon/...)
+	if (cmd && *cmd)
+	{
+		Cbuf_AddText(cmd, RESTRICT_LOCAL);
+		Cbuf_AddText("\n", RESTRICT_LOCAL);
+	}
+}
+EMSCRIPTEN_KEEPALIVE void NQWasm_StartMainLoop(void)
+{	//FTE drives its own main loop; nothing to do here.
+}
+EMSCRIPTEN_KEEPALIVE void NQWasm_PrefetchKnownSounds(void)
+{	//FTE manages its own sound precaching.
+}
+EMSCRIPTEN_KEEPALIVE const char *NQWasm_GetKeyBinding(int key)
+{	//touch HUD reads the command bound to a key for its button labels.
+	const char *b = Key_GetBinding(key, 0, 0);
+	return b ? b : "";
+}
+EMSCRIPTEN_KEEPALIVE void NQWasm_TextInputKey(int key)
+{	//mobile text-entry widget injects a keypress.
+	Key_Event(0, key, 0, true);
+	Key_Event(0, key, 0, false);
+}
+EMSCRIPTEN_KEEPALIVE const char *NQWasm_GetTextInputValue(void)
+{	//FTE owns its edit line; the shell text widget is input-only here.
+	return "";
+}
+EMSCRIPTEN_KEEPALIVE int NQWasm_GetVideoWidth(void)
+{
+	return vid.width;
+}
+EMSCRIPTEN_KEEPALIVE int NQWasm_GetConnectedServerListenPort(void)
+{	//trunk has no per-server UDP listen port; the join-code widget stays empty.
+	return 0;
+}
+
