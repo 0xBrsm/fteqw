@@ -1895,6 +1895,7 @@ ifeq ($(FTE_TARGET),web)
 	EMCC_LDFLAGS+= -s ALLOW_MEMORY_GROWTH=1			#reduce crashes...
 	EMCC_LDFLAGS+= -s MAX_WEBGL_VERSION=2			#make use of what we can.
 	EMCC_LDFLAGS+= -s TOTAL_STACK=5MB			#big!
+	EMCC_LDFLAGS+= -s EXPORTED_RUNTIME_METHODS=ccall,callMain	#NexQuake shell uses Module.ccall(NQWasm_*) + Module.callMain([]) for the ENTER gate.
    	EMCC_LDFLAGS+=-s ERROR_ON_UNDEFINED_SYMBOLS=1	#fairly obvious. no runtime errors please.
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)
 	DEBUG_CFLAGS=-gsource-map -DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)

@@ -64,6 +64,7 @@ typedef enum {
 	NP_NATPMP,	//server-only scheme for registering public ports.
 	NP_RTC_TCP,
 	NP_RTC_TLS,	//really need a better way to do this than two copies of every protocol...
+	NP_TRUNK,	//Nexus trunk relay: 2-byte BE dest-port-prefixed datagrams over ws(s) to /connect
 
 	NP_INVALID
 } netproto_t;
